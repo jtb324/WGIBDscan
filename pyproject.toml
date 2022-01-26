@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "Whole Genome IBD Scan"
+version = "0.0.8"
+description = "A tool to help scan the whole genome for IBD sharing for pairs of interest"
+authors = ["jtb324 <james.baker@vanderbilt.edu>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+pandas = "^1.4.0"
+numpy = "1.22.0"
+typer = "^0.4.0"
+
+[tool.poetry.dev-dependencies]
+black = "^21.12b0"
+pylint = "^2.12.2"
+pytest = "^6.2.5"
+coverage = "^6.3"
+pytest-cov = "^3.0.0"
+ipykernel = "^6.7.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
