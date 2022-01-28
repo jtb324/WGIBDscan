@@ -9,6 +9,12 @@ class GridFileNotFound(Exception):
         self.message = message
         super().__init__(message)
 
+class IncorrectFileType(Exception):
+    """Exception that will be raised if the user does not pass a text file for the grid file"""
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
 def check_grid_file(filepath: str) -> str:
     """making sure that the grid file is found 
     Parameters
@@ -24,10 +30,15 @@ def check_grid_file(filepath: str) -> str:
     """
     path = Path(filepath)
 
+    # check to make sure that the file exists
     if not path.is_file(): 
         raise GridFileNotFound(
             filepath,
             f"The file {filepath} was not found. Please make sure that you provide the program a text file with a list of individuals"
             )
-            
+    
+    # check to make sure that the file is a text file
+    if filepath[-3:] != "txt":
+        raise IncorrectFileType("The grid file provided was not the appropriate file type. Please provide a text file.")
+
     return filepath
