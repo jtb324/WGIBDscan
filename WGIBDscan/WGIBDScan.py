@@ -20,7 +20,7 @@ def main(
     ibd_files: List[str] = typer.Option(
         None,
         help="List of filepaths to the directories with the either ilash or hapibd files. The format of these arguments should be '--ibd_files hapibd --ibd_files ilash'",
-        callback=callbacks.check_ibd_files
+        callback=callbacks.check_ibd_files,
     ),
     output: str = typer.Option(
         "./whole_genome_ibdscan.txt",
