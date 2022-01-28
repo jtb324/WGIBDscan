@@ -1,12 +1,12 @@
 import pandas as pd
 from glob import glob
-from typing import List, GeneratorType, Tuple, Dict, Optional
+from typing import List, Generator, Tuple, Dict, Optional
 import os
 import gzip
 from multiprocessing import Pool, Manager
 
 
-def _gather_ersa_grid_files(directory: str) -> GeneratorType:
+def _gather_ersa_grid_files(directory: str) -> Generator:
     """Function that identifies all the different files that have the grid subgroups and then returns them as a list
     
     Parameters
@@ -16,7 +16,7 @@ def _gather_ersa_grid_files(directory: str) -> GeneratorType:
 
     Returns
     
-    GeneratorType
+    Generator
         returns a generator that will have all the filepaths
     """
 
@@ -155,7 +155,7 @@ def determine_minimal_relatedness(
     Tuple[str, str]
         returns a tuple where the first string is a grid id and the second string is a grid id
     """
-    subgroup_gen: GeneratorType = _gather_ersa_grid_files(ersa_filepath)
+    subgroup_gen: Generator = _gather_ersa_grid_files(ersa_filepath)
 
     # creating a list that we will append the sub group number to if it contains a grid of interest.
     # Ex: ["sub1", "sub2"]
