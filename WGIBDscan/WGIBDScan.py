@@ -3,6 +3,7 @@ import typer
 from typing import List
 import callbacks
 import ersa_search
+import logger
 
 app = typer.Typer(add_completion=False)
 
@@ -27,9 +28,13 @@ def main(
         help="text file that the output will be written to",
     ),
     ersa: str = typer.Option("...", help="filepath to the relatedness files from ERSA"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Optional Flag to run the program in verbose mode", is_flag=True)
 ) -> None:
     """CLI tool to determine how many IBD segments a group of grids shares across the entire genome"""
+    log_obj = logger.create_logger(log_level="debug")
 
+    print(type(log_obj))
+    log_obj.info(f"ersa filepath: {ersa}")
     # getting a list of grids from the user input file
     grids: List[str] = ersa_search.get_grids(grid_list)
 

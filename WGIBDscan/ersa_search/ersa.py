@@ -39,7 +39,7 @@ def _check_grids(ersa_file: str, grids: List[str]) -> int:
     
         returns a 1 if any of the grids are in this list or a zero if no grids are found in the list
     """
-    ersa_df: pd.DataFrame = pd.DataFrame(ersa_file, header=None)
+    ersa_df: pd.DataFrame = pd.read_csv(ersa_file, header=None)
 
     if any(ersa_df[0].isin(grids)):
         return 1
@@ -76,13 +76,13 @@ def _get_relatedness(file: str, grids: List[str], pairs_dict: Dict) -> None:
 
     # Open the ersa file using gzip and then read through each line. We need to skip the first lines that
     # have the '#'. Then decode the line and split it into a list so that we can compare the pair_1 and pair_2
+    print(f"file name: {file}")
     with gzip.open(file, "rb") as ersa_file:
-
+        
         for line in ersa_file:
 
-            if line.decode()[0] == "#":
-                continue
-            else:
+            if line.decode()[0] != "#" and line.decode().split()[0] != "individual_1":
+                
                 split_line: List[str] = line.decode().split()
 
                 pair_1, pair_2 = split_line[0], split_line[1]
@@ -91,6 +91,7 @@ def _get_relatedness(file: str, grids: List[str], pairs_dict: Dict) -> None:
 
                     pairs_dict[(pair_1, pair_2)] = split_line[3]
 
+    return pairs_dict
 
 def _search_ersa_files(
     subgroups: List[str], grid_list: List[str], ersa_directory: str, workers: int
@@ -121,6 +122,9 @@ def _search_ersa_files(
     ]
 
     # now we will parallelize over this process to run multiple things at the same time
+    if workers != 1:
+        print(f"parallelizing to {workers} cpu cores")
+
     manager = Manager()
 
     pool = Pool(workers)
@@ -174,4 +178,6 @@ def determine_minimal_relatedness(
 
             subgroups_list.append(subgroup)
 
-    _search_ersa_files(subgroups_list, grids_found, ersa_filepath, workers)
+    grids_dict: Dict[Tuple[str,str], int] = _search_ersa_files(subgroups_list, grid_list, ersa_filepath, workers)
+    print("final dict")
+    print(grids_dict)
