@@ -1,12 +1,26 @@
 #!/usr/bin/env python 
 import typer
-from typing import List
+from typing import List, Tuple
 import callbacks
 import ersa_search
 import logger
+from os import environ
+import colors
 
 app = typer.Typer(add_completion=False)
 
+color_formatter: colors.Color = colors.Color()
+
+def display_input(grid_list: str, cores: int, ibd_files: List[str], output: str, ersa: str) -> None: 
+    """Function to print all the inputs the user provided if the program is run in verbose mode"""
+    print(color_formatter.GREEN + "SUCCESS: Successfully loaded in the user parameters" + color_formatter.RESET)
+    print(color_formatter.BOLD + "Provided Input" + color_formatter.RESET)
+    print(color_formatter.BOLD + "~"*40 + color_formatter.RESET)
+    print(color_formatter.BOLD + "Grids File:" + color_formatter.RESET + grid_list)
+    print(color_formatter.BOLD + "CPU cores:" + color_formatter.RESET + str(cores))
+    print(color_formatter.BOLD + "IBD File directories:" + color_formatter.RESET + ",.".join(list(ibd_files)))
+    print(color_formatter.BOLD + "Output Directory:" + color_formatter.RESET + output)
+    print(color_formatter.BOLD + "ERSA File Directory:" + color_formatter.RESET + ersa + "\n")
 
 @app.command()
 def main(
@@ -33,12 +47,20 @@ def main(
     """CLI tool to determine how many IBD segments a group of grids shares across the entire genome"""
     log_obj = logger.create_logger(log_level="debug")
 
+    # setting an environmental variable for the verbose flag in the program
+    environ["verbose"] = str(verbose) 
+
+    if verbose:
+        display_input(grid_list, cores, ibd_files, output, ersa)
+    
     print(type(log_obj))
-    log_obj.info(f"ersa filepath: {ersa}")
+    # log_obj.info(f"ersa filepath: {ersa}")
     # getting a list of grids from the user input file
     grids: List[str] = ersa_search.get_grids(grid_list)
 
-    ersa_search.determine_minimal_relatedness(ersa, grids, cores)
+    pairs: Tuple[str, str] = ersa_search.determine_minimal_relatedness(ersa, grids, cores, output)
+
+    print(pairs)
 
 if __name__ == "__main__":
     app()
