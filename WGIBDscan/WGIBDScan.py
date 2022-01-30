@@ -53,7 +53,6 @@ def main(
     if verbose:
         display_input(grid_list, cores, ibd_files, output, ersa)
     
-    print(type(log_obj))
     # log_obj.info(f"ersa filepath: {ersa}")
     # getting a list of grids from the user input file
     grids: List[str] = ersa_search.get_grids(grid_list)

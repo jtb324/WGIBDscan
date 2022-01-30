@@ -134,15 +134,56 @@ def _search_ersa_files(
     for file in file_list:
         pool.apply_async(_get_relatedness, args=(file, grid_list, pairs_dict))
 
+    
+
     pool.close()
 
     pool.join()
 
+    print("Identified all the relatedness of the different pairs of grids. Closing the pools...")
+
     return dict(pairs_dict)
 
+def _lowest_relatedness(relatedness_dict: Dict[Tuple[str, str], int]) -> Tuple[str, str]:
+    """Function that will return the tuple in the dictionary that is the most disztantly relateded, 
+    meaning the highest number
+
+    Parameters
+
+    relatedness_dict: Dict[Tuple[str, str], int]
+
+        Dictionary that has tuples for each pair found in the ersa file and then has the 
+        estimated distant relatedness as values
+    
+    Tuple[str, str]
+    
+    returns the pair that is the most distantly related
+    """
+
+    return max(relatedness_dict, key=relatedness_dict.get)
+
+def _record_pairs(grids_dict: Dict[Tuple[str,str], int], output_path: str) -> None:
+    """Function to write the pairs relatedness to a file
+    
+    Parameters
+    
+    grids_dict : Dict[Tuple[str, str], int]
+        dictionary that has the estimated distant relatedness of each pair where the 
+        pairs are a tuple and the relatedness is the value
+    
+    output_path : str
+        directory to writesd the output to
+    """
+    with open(os.path.join(output_path, "pair_relatedness.txt"), "w") as output:
+        
+        output.write("pair_1\tpair_2\testimated_relatedness\n")
+
+        for key, value in grids_dict.items():
+
+            output.write(f"{key[0]}\t{key[1]}\t{value}\n")
 
 def determine_minimal_relatedness(
-    ersa_filepath: str, grid_list: List[str], workers: int
+    ersa_filepath: str, grid_list: List[str], workers: int, output: str
 ) -> Tuple[str, str]:
     """Function to determine the pairs with the least relatedness
 
@@ -154,30 +195,54 @@ def determine_minimal_relatedness(
     grid_list : List[str]
         list of grid ids that the minimal relatedness will be determined for
 
+    workers : int
+        number of cpus to be utilized during this step of the program
+
+    output : str
+        directory to write the output to. If verbose mode is selected then the 
+        relatedness of each pair gets written to a file called pair_relatedness.txt 
+        in the output directory
+
     Returns
 
     Tuple[str, str]
         returns a tuple where the first string is a grid id and the second string is a grid id
     """
+    if os.environ["verbose"] == "True":
+        print("Determine the pair from the provided grid list that is the most distantly related")
+
+    # creating a generator that contains all of the filepaths to the ersa pairs files        
     subgroup_gen: Generator = _gather_ersa_grid_files(ersa_filepath)
 
     # creating a list that we will append the sub group number to if it contains a grid of interest.
     # Ex: ["sub1", "sub2"]
     subgroups_list: List[str] = []
 
-    # iterating through each of the files in the subgroup generator
+    # iterating through each of the files in the subgroup generator and checking which ones have the grids of
+    # interest in them. If these files have the grids then they are added to the sub_groups_list
+    # that will be used later
     for file in subgroup_gen:
 
         grids_found: int = _check_grids(file, grid_list)
-
-        # if there are grids within the file then it finds the subgroup with the filename and appends it
-        # to the sub_groups_list
+        
+        # if grids_found == 1 then it means that the file has at least two of the grids of interest in a pair
         if grids_found == 1:
 
             subgroup: str = _get_subgroup(file)
 
             subgroups_list.append(subgroup)
 
+    # This dictionary contains all the pairs within the files that have grids of interest and how distantly 
+    # related they are
     grids_dict: Dict[Tuple[str,str], int] = _search_ersa_files(subgroups_list, grid_list, ersa_filepath, workers)
-    print("final dict")
-    print(grids_dict)
+
+    # determining the pair of individuals who are least related
+    least_rel_pair: Tuple[str, str] = _lowest_relatedness(grids_dict)
+
+    # If the user chooses verbose mode then the pairs and there relatedness gets written to a file
+    if os.environ["verbose"] == "True":
+
+        _record_pairs(grids_dict, output)
+
+    # returns the pair that is the most distantly related
+    return least_rel_pair
