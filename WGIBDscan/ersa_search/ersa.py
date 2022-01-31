@@ -4,7 +4,9 @@ from typing import List, Generator, Tuple, Dict, Optional
 import os
 import gzip
 from multiprocessing import Pool, Manager
+import colors
 
+color_formatter: colors.Color = colors.Color()
 
 def _gather_ersa_grid_files(directory: str) -> Generator:
     """Function that identifies all the different files that have the grid subgroups and then returns them as a list
@@ -73,10 +75,11 @@ def _get_relatedness(file: str, grids: List[str], pairs_dict: Dict) -> None:
     grids : List[str]
         list of grids that we want to determine the estimated relatedness for
     """
-
+    if os.environ["verbose"] == "True":
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Searching through the file {file}")
+    
     # Open the ersa file using gzip and then read through each line. We need to skip the first lines that
     # have the '#'. Then decode the line and split it into a list so that we can compare the pair_1 and pair_2
-    print(f"file name: {file}")
     with gzip.open(file, "rb") as ersa_file:
         
         for line in ersa_file:
@@ -92,6 +95,7 @@ def _get_relatedness(file: str, grids: List[str], pairs_dict: Dict) -> None:
                     pairs_dict[(pair_1, pair_2)] = split_line[3]
 
     return pairs_dict
+
 
 def _search_ersa_files(
     subgroups: List[str], grid_list: List[str], ersa_directory: str, workers: int
@@ -122,19 +126,20 @@ def _search_ersa_files(
     ]
 
     # now we will parallelize over this process to run multiple things at the same time
-    if workers != 1:
-        print(f"parallelizing to {workers} cpu cores")
+    if workers != 1 and os.environ["verbose"] == "True":
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Found all the files that had the format 'EUR_sub*.ersa.gz' ")
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Parallelizing to {workers} cpu cores")
 
     manager = Manager()
 
     pool = Pool(workers)
 
+    # creating a dictionary that will be provided to each pool. This dictionary becomes immutable in each pool 
+    # once something is added to it
     pairs_dict: Dict[Tuple[str, str], int] = manager.dict()
 
     for file in file_list:
         pool.apply_async(_get_relatedness, args=(file, grid_list, pairs_dict))
-
-    
 
     pool.close()
 
