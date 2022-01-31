@@ -5,6 +5,7 @@ class Color:
         self.RED: str   = "\033[1;31m"  
         self.BLUE: str  = "\033[1;34m"
         self.GREEN: str = "\033[0;32m"
+        self.YELLOW: str = '\033[33m'
         self.RESET: str = "\033[0;0m"
         self.BOLD: str    = "\033[;1m"
         self.REVERSE: str = "\033[;7m"
