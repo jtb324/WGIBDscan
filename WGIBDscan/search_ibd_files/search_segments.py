@@ -6,7 +6,7 @@ import sys
 from itertools import combinations
 from glob import glob
 from multiprocessing import Pool, Manager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 
 color_formatter: colors.Color = colors.Color()
@@ -41,8 +41,8 @@ class Pair_Segments:
     """class object that will contain information about the object"""
     pair1: str
     pair2: str
-    segments: List[Tuple[int, int]] = []
-    overlap_others: Optional[Dict[Tuple[int, int], int]] = {}
+    segments: List[Tuple[int, int]] = field(default_factory=list)
+    overlap_others: Optional[Dict[Tuple[int, int], int]] = field(default_factory=dict)
 
 def _get_ibd_files(ibd_program: str, ibd_directory: str) ->  Tuple[str, List[str]]:
     """Function that will identify the correct files for each ibd program and return them in a tuple
@@ -79,6 +79,8 @@ def _get_ibd_files(ibd_program: str, ibd_directory: str) ->  Tuple[str, List[str
 
     os.chdir(cur_dir)  
 
+    if os.environ["verbose"] == "True":
+        print(color_formatter.BOLD +" INFO: " + color_formatter.RESET + f"Identified {len(file_list)} ibd files in the directory {ibd_directory}")
     return ibd_program, file_list
 
 
@@ -119,7 +121,7 @@ def _get_chr_num(file_name: str) -> str:
     # return the chromosome number without the trailing period
     return match.group(0)[:-1]
 
-def _search_file(ibd_file: str, pair: Tuple[str, str], return_dict: Dict, ibd_indx: Ibd_Indices, search_space: Optional[List[Tuple[int, int]]] = None) -> Dict:
+def _search_file(ibd_file: str, pair: Tuple[str, str], return_dict: Dict, ibd_indx: Ibd_Indices, search_space: Optional[Dict[str, Pair_Segments]] = None) -> Dict:
     """Function that will search through the ibd file and return a dictionary that has the results
     
     Parameters
@@ -130,10 +132,25 @@ def _search_file(ibd_file: str, pair: Tuple[str, str], return_dict: Dict, ibd_in
     pair : Tuple[str, str]
         tuple of ids for the pair of interest
     
+    return_dict : dict[str, Pair_Segments]
+        dictionary that will be returned by the function that has the chromosome number as the key 
+        and has the Pair_Segments object as the value
+
+    ibd_indx : Ibd_Indices
+        object that has the indices for a specific ibd program so that the correct columns will be accessed
+
+    search_space : Optional[Dict[str, Pair_Segments]] = None
+        dictionary that has all the positions of the ibd programs that for the chromosomes of interest. 
+        This argument is either a dictionary or the default value of None
+    
     Returns
     
     Dict
+        returns a dictionary that has the chromosome number as the key and the Pair object as the value
     """
+    if os.environ["verbose"] == "True":
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Searching through the file {ibd_file}")
+    
     # getting the chromosome number to use a key in the return_dict
     chr_num: str = _get_chr_num(ibd_file)
 
@@ -149,8 +166,10 @@ def _search_file(ibd_file: str, pair: Tuple[str, str], return_dict: Dict, ibd_in
         # can just pull out the start and the end position and then append these tuples to the position_list. If there is a search space
         # provided then we need to iterate over each value in the search space and see if the region overlaps this segment.
         if search_space:
+            # need to pull out the search space list from the search_space. Need to pull out the right list for the appropriate chromosome
+            search_space_list: List[Tuple[int, int]] = search_space[chr_num].segments
 
-            for start, end in search_space:
+            for start, end in search_space_list:
                 loc_filtered_chunk: pd.DataFrame = filter_chunk[((filter_chunk[ibd_indx.start] <= start) & (filter_chunk[ibd_indx.end] > start)) | 
                                                 ((filter_chunk[ibd_indx.start] >= start) & (filter_chunk[ibd_indx.end] <= end)) | 
                                                 ((filter_chunk[ibd_indx.start] <= end) & (filter_chunk[ibd_indx.end] >= end))]
@@ -169,8 +188,30 @@ def _search_file(ibd_file: str, pair: Tuple[str, str], return_dict: Dict, ibd_in
     return_dict[chr_num] = pair_obj
 
     return return_dict
+def _filter_ibd_files(search_space: List[str], ibd_files: List[str]) -> List[str]:
+    """Function that will filter the ibd_files list to include only those files which match the chromosomes in the search space
+    
+    Parameters
+    
+    search_space : List[str]
+        list of chromosomes to filter the ibd files down to
+        
+    ibd_files : List[str]
+        list of ibd files
+        
+    Returns
+    
+    List[str]
+        returns a list of the files that include the chromosome numbers
+    """
+    # add a . to the end of the search space substrings so that the files are correctly identified. Ex:
+    # substring will be chr1. which will prevent the function from returning both chr1 and chr10 as a match
+    substrings: List[str] = [chr_num + "." for chr_num in search_space]
 
-def _parallelize(pair: Tuple[str, str], ibd_files: List[str], ibd_indx: Ibd_Indices, search_space: Optional[List[Tuple]] = None) -> Dict[str, Dict[Tuple[str, str]]]:
+    # filter the ibd files if any of the substrings match the files
+    return [file for file in ibd_files if any(substring in file for substring in substrings)]
+
+def _parallelize(pair: Tuple[str, str], ibd_files: List[str], ibd_indx: Ibd_Indices, search_space: Optional[List[Tuple]] = None) -> Dict[str, Dict[Tuple[str, str], List]]:
     """Function that will parallelize this search for pair's shared ibd segments across the whole genome
     
     Parameters
@@ -193,24 +234,57 @@ def _parallelize(pair: Tuple[str, str], ibd_files: List[str], ibd_indx: Ibd_Indi
 
     # now we will parallelize over this process to run multiple things at the same time
     if os.environ["verbose"] == "True":
+        
         print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Parallelizing to {len(ibd_files)} cpu cores")
 
-    manager = Manager()
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"search space for {len(search_space.keys())}" if search_space else "no search space provided")
 
-    pool = Pool(len(ibd_files))
+    # creating a manager so that I can keep track of the dictionary throughout the parallelization
+    manager = Manager()
 
     # creating a dictionary that will be provided to each pool. This dictionary becomes immutable in each pool 
     # once something is added to it
     pairs_dict: Dict[Tuple[str, str], Dict[str, Tuple[int, int]]] = manager.dict()
+    # if search space is none then we can just parallelize normally. Otherwise we need to filtdr down to the correct ibd file and then 
+    if search_space == None:
+        pool = Pool(len(ibd_files))
 
-    for file in ibd_files:
-        pool.apply_async(_search_file, args=(file, pair, pairs_dict, ibd_indx, search_space))
+        for file in ibd_files:    
+
+            pool.apply_async(_search_file, args=(file, pair, pairs_dict, ibd_indx, search_space))
+
+    else:
+        filtered_ibd_files: List[str] = _filter_ibd_files(list(search_space.keys()), ibd_files)
+        
+        pool = Pool(len(filtered_ibd_files))
+
+        for file in filtered_ibd_files:
+            pool.apply_async(_search_file, args=(file, pair, pairs_dict, ibd_indx, search_space))
 
     pool.close()
 
     pool.join()
 
     return pair, dict(pairs_dict) 
+
+def _find_search_space(segments_dict: Dict[str, Pair_Segments]) -> Dict[str, Pair_Segments]:
+    """Function that will identify which chromosomes have idb segments
+    
+    Parameters
+    
+    segments_dict : Dict[str, Pair_Segments]
+        dictionary that has the chromosome numbers as keys and it has the Pair_Segments as values. 
+        These values have attributes pair1, pair2, segments, and overlap_others. If segments is not empty 
+        then there were shared segments found for the pair
+    
+    Returns
+    
+    Dict[str, Pair_Segments]
+        returns a filter version of the input dictionary where there are only chromosomes that have found 
+        ibd segments
+    """
+
+    return {chr_num: pair_obj for chr_num, pair_obj in segments_dict.items() if len(pair_obj.segments) != 0}
 
 #Need a function that will take the total number of grids and the most distantly related grids
 def search_segments(distant_pairs: Tuple[str, str], grids: List[str], ibd_programs: List[str], output: str) -> None:
@@ -259,9 +333,32 @@ def search_segments(distant_pairs: Tuple[str, str], grids: List[str], ibd_progra
         # been identified yet
         pair_info, segment_dicts = _parallelize(distant_pairs, ibd_info[1], program_indx)
 
-        output_dict["program"][pair_info] = segment_dicts
-        
+        # adding the pair as a key to the output dictionary for the correct program while the dictionary with the different pair 
+        # objects for each chromosome will  be added as values
+        output_dict[program][pair_info] = segment_dicts
 
+        print(output_dict)
+
+        # Determining the search space by filtering the input dictionary for only those chromosomes that have the 
+        # shared ibd segments
+        search_space: Dict[str, Pair_Segments] = _find_search_space(output_dict[program][pair_info])
+
+        # need to create the logic for the other pairs so that it reparallelizes out to find the other grid pairs
+        for pair in grid_combinations:
+
+            if len(search_space) != 0:
+                pair_info, segment_dicts = _parallelize(pair, ibd_info[1], program_indx, search_space)
+
+                output_dict[program][pair_info] = segment_dicts
+
+            else:
+                pair_info, segment_dicts = _parallelize(pair, ibd_info[1], program_indx)
+
+                output_dict[program][pair_info] = segment_dicts
+
+            break
+        
+        print(output_dict)
 
 
 

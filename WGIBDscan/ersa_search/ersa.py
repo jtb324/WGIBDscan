@@ -1,3 +1,4 @@
+from posixpath import split
 import pandas as pd
 from glob import glob
 from typing import List, Generator, Tuple, Dict, Optional
@@ -48,7 +49,6 @@ def _check_grids(ersa_file: str, grids: List[str]) -> int:
     else:
         return 0
 
-
 def _get_subgroup(file: str) -> str:
     """Function that will pull the subgroup substring out of the filepath
     
@@ -91,9 +91,17 @@ def _get_relatedness(file: str, grids: List[str], pairs_dict: Dict) -> None:
                 pair_1, pair_2 = split_line[0], split_line[1]
 
                 if pair_1 in grids and pair_2 in grids:
+                    
+                    # if the relatedness value is a number than it will just place the value into the dictionary. 
+                    # If it is not a value then the program will insert the number 100 into the dictionary to 
+                    # indicate that there was no significant relatedness. This is represented in teh file as 
+                    # no_sign_rel
+                    if split_line[3].isnumeric():
 
-                    pairs_dict[(pair_1, pair_2)] = split_line[3]
+                        pairs_dict[(pair_1, pair_2)] = int(split_line[3])
 
+                    else:
+                        pairs_dict[(pair_1, pair_2)] = 100
     return pairs_dict
 
 
@@ -162,9 +170,10 @@ def _lowest_relatedness(relatedness_dict: Dict[Tuple[str, str], int]) -> Tuple[s
     
     Tuple[str, str]
     
-    returns the pair that is the most distantly related
+    returns the pair that is the most distantly related. If any of the pairs have no significant 
+    relatedness than it will return this pair or the first pair it runs into like that
     """
-
+    print(relatedness_dict)
     return max(relatedness_dict, key=relatedness_dict.get)
 
 def _record_pairs(grids_dict: Dict[Tuple[str,str], int], output_path: str) -> None:
@@ -246,6 +255,8 @@ def determine_minimal_relatedness(
 
     # If the user chooses verbose mode then the pairs and there relatedness gets written to a file
     if os.environ["verbose"] == "True":
+        print(color_formatter.GREEN + color_formatter.BOLD + "SUCCESS: " + color_formatter.RESET + f"Successfully identified the relatedness of {len(grids_dict.keys())}/{len(grid_list)} individuals")
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Writting the relatedness to a file at {os.path.join(output ,'pair_relatedness.txt')}")
 
         _record_pairs(grids_dict, output)
 

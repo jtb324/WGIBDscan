@@ -6,14 +6,14 @@ import ersa_search
 import logger
 from os import environ
 import colors
-
+import search_ibd_files
 app = typer.Typer(add_completion=False)
 
 color_formatter: colors.Color = colors.Color()
 
 def display_input(grid_list: str, cores: int, ibd_files: List[str], output: str, ersa: str) -> None: 
     """Function to print all the inputs the user provided if the program is run in verbose mode"""
-    print(color_formatter.GREEN + "SUCCESS: Successfully loaded in the user parameters" + color_formatter.RESET)
+    print(color_formatter.GREEN + "SUCCESS: " + color_formatter.RESET + "Successfully loaded in the user parameters")
     print(color_formatter.BOLD + "Provided Input" + color_formatter.RESET)
     print(color_formatter.BOLD + "~"*40 + color_formatter.RESET)
     print(color_formatter.BOLD + "Grids File:" + color_formatter.RESET + grid_list)
@@ -34,7 +34,7 @@ def main(
     ),
     ibd_files: List[str] = typer.Option(
         None,
-        help="List of filepaths to the directories with the either ilash or hapibd files. The format of these arguments should be '--ibd_files hapibd --ibd_files ilash'",
+        help="List of the ibd program used so the program can identify directories with the either ilash or hapibd files. The format of these arguments should be '--ibd_files hapibd --ibd_files ilash'",
         callback=callbacks.check_ibd_files,
     ),
     output: str = typer.Option(
@@ -59,7 +59,8 @@ def main(
 
     pairs: Tuple[str, str] = ersa_search.determine_minimal_relatedness(ersa, grids, cores, output)
 
-    print(pairs)
+
+    search_ibd_files.search_segments(pairs, grids, ibd_files, output)
 
 if __name__ == "__main__":
     app()
