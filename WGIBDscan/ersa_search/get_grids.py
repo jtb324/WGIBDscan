@@ -1,4 +1,8 @@
 from typing import List
+import os
+import colors
+
+color_formatter: colors.Color = colors.Color()
 
 def get_grids(grid_filepath: str) -> List[str]:
     """Function that gathers all of the grid IDs into a list that the user provided and then returns the list
@@ -20,4 +24,6 @@ def get_grids(grid_filepath: str) -> List[str]:
         
     print(f"identified {len(grid_list)} grids from the file the user provided at {grid_filepath}")
 
+    if os.environ["verbose"] == "True":
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Grid List: {', '.join(grid_list)}")
     return grid_list

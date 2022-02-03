@@ -8,6 +8,7 @@ from glob import glob
 from multiprocessing import Pool, Manager
 from dataclasses import dataclass, field
 import re
+import search_ibd_files
 
 color_formatter: colors.Color = colors.Color()
 
@@ -170,15 +171,19 @@ def _search_file(ibd_file: str, pair: Tuple[str, str], return_dict: Dict, ibd_in
             search_space_list: List[Tuple[int, int]] = search_space[chr_num].segments
 
             for start, end in search_space_list:
-                loc_filtered_chunk: pd.DataFrame = filter_chunk[((filter_chunk[ibd_indx.start] <= start) & (filter_chunk[ibd_indx.end] > start)) | 
+                if pair_obj.overlap_others.get((start, end), 0) == 0:
+                    loc_filtered_chunk: pd.DataFrame = filter_chunk[((filter_chunk[ibd_indx.start] <= start) & (filter_chunk[ibd_indx.end] > start)) | 
                                                 ((filter_chunk[ibd_indx.start] >= start) & (filter_chunk[ibd_indx.end] <= end)) | 
                                                 ((filter_chunk[ibd_indx.start] <= end) & (filter_chunk[ibd_indx.end] >= end))]
                 # At this point we have filtered the dataframe so that it is only regions that overlap the gene of interest. If the dataframe is 
                 # empty than we record that segment in the overlap_others attribute and set it = to zero. Otherwise we set it equal to 1
-                if loc_filtered_chunk.empty:
-                    pair_obj.overlap_others[(start, end)] = 0
+
+                    if loc_filtered_chunk.empty:
+                        pair_obj.overlap_others[(start, end)] = 0
+                    else:
+                        pair_obj.overlap_others[(start, end)] = 1
                 else:
-                    pair_obj.overlap_others[(start, end)] = 1
+                    continue
                 
                 # now we are going to add the segments to the segments attribute of the pair object
                 pair_obj.segments.extend(list(zip(loc_filtered_chunk[ibd_indx.start], loc_filtered_chunk[ibd_indx.end])))
@@ -231,11 +236,13 @@ def _parallelize(pair: Tuple[str, str], ibd_files: List[str], ibd_indx: Ibd_Indi
         returns a dictionary of dictionaries where the outer key is the chromosome number and the value is a dictionary that has a tuple of pair ids for the keys 
         and the values are the shared segment start and end points
     """
-
-    # now we will parallelize over this process to run multiple things at the same time
+    if os.cpu_count() < len(ibd_files):
+        workers: int = int(os.cpu_count())
+    else:
+        workers: int = len(ibd_files)    # now we will parallelize over this process to run multiple things at the same time
     if os.environ["verbose"] == "True":
         
-        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Parallelizing to {len(ibd_files)} cpu cores")
+        print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"Parallelizing to {workers} cpu cores")
 
         print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"search space for {len(search_space.keys())}" if search_space else "no search space provided")
 
@@ -247,7 +254,7 @@ def _parallelize(pair: Tuple[str, str], ibd_files: List[str], ibd_indx: Ibd_Indi
     pairs_dict: Dict[Tuple[str, str], Dict[str, Tuple[int, int]]] = manager.dict()
     # if search space is none then we can just parallelize normally. Otherwise we need to filtdr down to the correct ibd file and then 
     if search_space == None:
-        pool = Pool(len(ibd_files))
+        pool = Pool(workers)
 
         for file in ibd_files:    
 
@@ -256,7 +263,7 @@ def _parallelize(pair: Tuple[str, str], ibd_files: List[str], ibd_indx: Ibd_Indi
     else:
         filtered_ibd_files: List[str] = _filter_ibd_files(list(search_space.keys()), ibd_files)
         
-        pool = Pool(len(filtered_ibd_files))
+        pool = Pool(workers)
 
         for file in filtered_ibd_files:
             pool.apply_async(_search_file, args=(file, pair, pairs_dict, ibd_indx, search_space))
@@ -267,7 +274,7 @@ def _parallelize(pair: Tuple[str, str], ibd_files: List[str], ibd_indx: Ibd_Indi
 
     return pair, dict(pairs_dict) 
 
-def _find_search_space(segments_dict: Dict[str, Pair_Segments]) -> Dict[str, Pair_Segments]:
+def find_search_space(segments_dict: Dict[str, Pair_Segments]) -> Dict[str, Pair_Segments]:
     """Function that will identify which chromosomes have idb segments
     
     Parameters
@@ -304,7 +311,7 @@ def search_segments(distant_pairs: Tuple[str, str], grids: List[str], ibd_progra
     output : str
         directory that the user wants to write the output to
     """
-
+    
     output_dict: Dict[str, Optional[Dict]] = {program: {} for program in ibd_programs}
 
     # For loop will iterate over the different ibd programs 
@@ -327,7 +334,9 @@ def search_segments(distant_pairs: Tuple[str, str], grids: List[str], ibd_progra
             print(color_formatter.BOLD + "INFO: " + color_formatter.RESET + f"found {len(ibd_info[1])} files for the ibd program, {program}")
         
         # getting all combinations of the different pairs that are not the distant pairs
-        grid_combinations: List[Tuple[str, str]] = [pair for pair in combinations(grids, 2) if pair != distant_pairs or pair != tuple(reversed(distant_pairs))]
+
+        grid_combinations: List[Tuple[str, str]] = [pair for pair in combinations(grids, 2) if pair != distant_pairs and pair != tuple(reversed(distant_pairs))]
+
         # parallelize the first pair so that it searches for all shared ibd segments across the whole genome. 
         # This will not pass the second argument 'search_space' to the function because no shared segments have
         # been identified yet
@@ -337,11 +346,9 @@ def search_segments(distant_pairs: Tuple[str, str], grids: List[str], ibd_progra
         # objects for each chromosome will  be added as values
         output_dict[program][pair_info] = segment_dicts
 
-        print(output_dict)
-
         # Determining the search space by filtering the input dictionary for only those chromosomes that have the 
         # shared ibd segments
-        search_space: Dict[str, Pair_Segments] = _find_search_space(output_dict[program][pair_info])
+        search_space: Dict[str, Pair_Segments] = find_search_space(output_dict[program][pair_info])
 
         # need to create the logic for the other pairs so that it reparallelizes out to find the other grid pairs
         for pair in grid_combinations:
@@ -356,9 +363,7 @@ def search_segments(distant_pairs: Tuple[str, str], grids: List[str], ibd_progra
 
                 output_dict[program][pair_info] = segment_dicts
 
-            break
-        
-        print(output_dict)
+        search_ibd_files.write(os.path.join(output, "whole_genome_ibd_sharing.txt"), output_dict)
 
 
 

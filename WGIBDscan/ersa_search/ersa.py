@@ -173,7 +173,6 @@ def _lowest_relatedness(relatedness_dict: Dict[Tuple[str, str], int]) -> Tuple[s
     returns the pair that is the most distantly related. If any of the pairs have no significant 
     relatedness than it will return this pair or the first pair it runs into like that
     """
-    print(relatedness_dict)
     return max(relatedness_dict, key=relatedness_dict.get)
 
 def _record_pairs(grids_dict: Dict[Tuple[str,str], int], output_path: str) -> None:

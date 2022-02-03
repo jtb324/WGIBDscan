@@ -20,7 +20,8 @@ def display_input(grid_list: str, cores: int, ibd_files: List[str], output: str,
     print(color_formatter.BOLD + "CPU cores:" + color_formatter.RESET + str(cores))
     print(color_formatter.BOLD + "IBD File directories:" + color_formatter.RESET + ",.".join(list(ibd_files)))
     print(color_formatter.BOLD + "Output Directory:" + color_formatter.RESET + output)
-    print(color_formatter.BOLD + "ERSA File Directory:" + color_formatter.RESET + ersa + "\n")
+    print(color_formatter.BOLD + "ERSA File Directory:" + color_formatter.RESET + ersa)
+    print(color_formatter.BOLD + "~"*40 + color_formatter.RESET + "\n")
 
 @app.command()
 def main(
