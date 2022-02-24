@@ -193,7 +193,11 @@ def _record_pairs(grids_dict: Dict[Tuple[str,str], int], output_path: str) -> No
 
         for key, value in grids_dict.items():
 
-            output.write(f"{key[0]}\t{key[1]}\t{value}\n")
+            if value == 100:
+                output.write(f"{key[0]}\t{key[1]}\t{'N/A'}\n")
+            else:
+                output.write(f"{key[0]}\t{key[1]}\t{value}\n")
+                
 
 def determine_minimal_relatedness(
     ersa_filepath: str, grid_list: List[str], workers: int, output: str
